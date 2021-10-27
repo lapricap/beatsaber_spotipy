@@ -1,0 +1,1 @@
+To help put a list of songs that only had map name, mapper, map hash onto dancesaber.com to match their UI (needed era of song as well as genre), I made a python script to call BeatSaver and Spotify APIs in order to get the information.
