@@ -4,6 +4,7 @@
 import csv
 import requests
 import time
+import re
 # import json
 
 rows = []
@@ -12,7 +13,7 @@ songnames = []
 artistnames = []
 newcsvrows = []
 
-token = 'INSERT SPOTIFY API TOKEN HERE'
+token = 'INSERT SPOTIFY TOKEN HERE'
 
 def date_to_era(songdate):
     songyear = int(songdate[:4])
@@ -27,28 +28,43 @@ def date_to_era(songdate):
     return "2000s"
 
 
-with open("mapstoadd.csv",'r') as file:
+with open("aevyn_shorterlist.csv",'r') as file:
     csvreader = csv.reader(file)
     header = next(csvreader)
     for row in csvreader:
-        songnames.append(row[0])
-        map_hashes.append(row[2])
-        songname = row[0]
-        print('songname: ' + songname)
+        # if(len(songnames)>4):
+            # break
+        songnames.append(row[2])
+        # print('excel song name: ' + row[2])
+        map_hashes.append(row[0])
         mappername = row[1]
-        map_hash = row[2]
+        map_hash = row[0]
         response = requests.get("https://api.beatsaver.com/maps/hash/"+map_hash)
+        excelsongname = row[2]
         print('beatsaver reponse: ' + str(response.status_code))
 
         if(response.status_code!=200):
-            newcsvrows.append([songname,'',mappername,map_hash,'','','',''])
+            print(excelsongname)
+            newcsvrows.append([excelsongname,'',mappername,map_hash,'','','',''])
             continue
 
-        artistName = response.json()['metadata']['songAuthorName']
+        bsaberSongId = response.json()['id']
+        artistName = response.json()['metadata']['songSubName']
+        if(not artistName):
+            newcsvrows.append([excelsongname,'',mappername,map_hash,'','','',''])
+            continue
+        songname = response.json()['metadata']['songName'] 
+        songNameNoBrackets = re.sub("([\(\[]).*?([\)\]])", "", songname) 
+        songname = songNameNoBrackets
+        print('songname: ' + songname)
+        # print('songnamenobrackets: ' + songNameNoBrackets)
+        print('artistname: ' + artistName)
 
         # make request to spotipy
+        # artistname is pulled from songsubname instead of songauthorname
         spotifySearchResponse = requests.get("https://api.spotify.com/v1/search?q="+songname+" "+artistName+"&type=track",headers={'accept':"application/json",'content-type':'application/json','authorization':'Bearer '+token})
         print('spotify response: '+ str(spotifySearchResponse.status_code)+"\n")
+        # print(spotifySearchResponse.json())
         if(not spotifySearchResponse.json()['tracks']['items']):
             newcsvrows.append([songname,'',mappername,map_hash,'','','',''])
             continue
@@ -65,11 +81,12 @@ with open("mapstoadd.csv",'r') as file:
         # get genre(s) from artist(s)
         for artistID in spotifyArtistIDs:
             spotifyArtistResponse = requests.get("https://api.spotify.com/v1/artists/"+artistID,headers={'accept':"application/json",'content-type':'application/json','authorization':'Bearer '+token})
+            # print(spotifyArtistResponse.json())
             genres |= set(spotifyArtistResponse.json()['genres'])
         genres=sorted(genres)
 
-        # song,artist, mapper, hash,date, era, genres, url
-        newcsvrows.append([songname,artistName,mappername,map_hash,spotifyTrackReleaseDate,era,"|".join(genres),'=HYPERLINK("'+spotifyTrackURL+'")'])
+        # song,artist, mapper, hash,date, era, genres, spotify url, bsaberurl
+        newcsvrows.append([excelsongname,artistName,mappername,map_hash,spotifyTrackReleaseDate,era,"|".join(genres),'=HYPERLINK("'+spotifyTrackURL+'")','=HYPERLINK("https://bsaber.com/songs/'+bsaberSongId+'/")'])
         # write year, genre, url of found track to CSV (need to make new column for url) 
 
 # write to csv
